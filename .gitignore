@@ -1,0 +1,9 @@
+build/
+install/
+log/
+!/scripts/build
+
+*.log
+*.mp4
+out
+*.zip
