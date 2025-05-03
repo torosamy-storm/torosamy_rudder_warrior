@@ -27,10 +27,9 @@ class ArmorModule : public Torosamy::TorosamyModule{
 public:
     ArmorModule(const int& id);
     void run() override;
-    void doOnce();
+    bool doOnce();
     void enableShow();
     void disableShow();
-    // const std::shared_ptr<ShootSubscriber>& getSubscriber() const;
     static YAML::Node getConfigNode(const int& id);
     static std::vector<std::shared_ptr<TorosamyModule>> makeModules();
     static std::vector<int> getIds();
@@ -52,8 +51,6 @@ private:
     std::shared_ptr<ReceiveDataPacket> mReceiveDataPacket;
 
 
-    // std::shared_ptr<ShootPublisher> mShootPublisher;
-    // std::shared_ptr<ShootSubscriber> mShootSubscriber;
     
     LightManager mLightManager;
     ArmorManager mArmorManager;

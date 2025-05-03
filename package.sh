@@ -12,7 +12,7 @@ cp -rf package.sh out
 cp -rf start.sh out
 cp -rf version.txt out
 rm -rf out/torosamy_automatic_aiming/build
-
+rm -rf out/torosamy_robomaster_sdk/resource/video/*.mp4
 
 cd out
 

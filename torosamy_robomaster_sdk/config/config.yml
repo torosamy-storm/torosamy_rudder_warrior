@@ -8,4 +8,4 @@ Settings:
     Enable: false
     # AutoUpdate: false TODO
   # (0/1) == (RED/BLUE)
-  TargetColor: 0
+  TargetColor: 1

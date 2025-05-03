@@ -3,6 +3,10 @@
 //
 #include <torosamy_automatic_aiming/armor/Armor.h>
 #include "utils/MessageUtils.h"
+
+Armor::Armor(): mType(ArmorType::NEGATIVE)  {
+}
+
 Armor::Armor(const Light& light1, const Light& light2) :
     mType(ArmorType::NEGATIVE) {
     mLeftLight = light1.getCenter().x < light2.getCenter().x ? light1 : light2;
@@ -42,7 +46,9 @@ Armor::Armor(const Light& light1, const Light& light2) :
     mAngleMate = fabs(angleLeft - angleRight);
 
 }
-
+void Armor::resetType() {
+    mType = ArmorType::NEGATIVE;
+}
 Armor Armor::generatePredictArmor(const cv::Point2f& center) const{
     const cv::Point2f& dPoint = center - mCenter;
 
@@ -113,12 +119,9 @@ bool Armor::isBigArmor() const {
 
 void Armor::drawArmor(cv::Mat& outSrc, const std::vector<bool>& debugOptions) const {
     using namespace Torosamy;
-    //置信度
+
     float x = mPoints.at(0).x + 50;
     float y = mPoints.at(0).y;
-
-    //MessageUtils::putText(outSrc, mClassifyResult, cv::Point2f(x+15, y));
-
 
     if(debugOptions.at(0)) {
         MessageUtils::putText(outSrc, "angle = " + std::to_string(mAngle), cv::Point2f(x, y));

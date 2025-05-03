@@ -19,10 +19,11 @@ public:
     float2uchar yaw;
     
     float2uchar distance;
+    bool2uchar is_turn_right;
 
-    bool2uchar isFindTarget;
-    bool2uchar startFire;
-    short2uchar heartJumpNum;
+    bool2uchar is_find_target;
+    bool2uchar start_fire;
+    short2uchar heart_jump_num;
 };
 
 

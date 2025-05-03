@@ -7,6 +7,7 @@
 
 ArmorManager::ArmorManager(const YAML::Node& fileReader) :
     mArmorFilter(fileReader),
+    mEnableDraw(fileReader["DrawAll"].as<bool>()),
     mClassifyHandler(fileReader["Classify"]) {
     mDebugOptions.emplace_back(fileReader["Debug"]["angle"].as<bool>());
     mDebugOptions.emplace_back(fileReader["Debug"]["angleMate"].as<bool>());
@@ -66,14 +67,17 @@ bool ArmorManager::findArmors(const cv::Mat& src) {
     for (auto & armor : mArmors) {
 
         std::pair<ArmorType, float> classify = mClassifyHandler.classify(src, armor);
-
         const ArmorType type = classify.first;
         if (type == ArmorType::NEGATIVE) {
             continue;
         }
-
+        
         armor.setArmorType(type);
-        if (classify.second < mClassifyHandler.getMinConfidence()) continue;
+        // if(type == ArmorType::OUTPOST) std::cout <<"yes"<<std::endl;
+        // else std::cout<<"no"<<std::endl;
+        // if (classify.second < mClassifyHandler.getMinConfidence()) continue;
+
+        // std::cout <<static_cast<int>(type)<< "   "<<   classify.second <<std::endl;
         result.emplace_back(armor);
     }
     if (result.empty()) return false;
@@ -83,6 +87,7 @@ bool ArmorManager::findArmors(const cv::Mat& src) {
 
 
 void ArmorManager::drawArmors(cv::Mat& outSrc) const{
+    if (!mEnableDraw) return;
     for (const Armor& armor : mArmors) {
         armor.drawArmor(outSrc,mDebugOptions);
     }
@@ -94,4 +99,9 @@ void ArmorManager::drawTarget(cv::Mat& outSrc) const {
 
 const Armor& ArmorManager::getTargetArmor() const{
     return mTargetArmor;
+}
+
+
+void ArmorManager::resetTargetArmorType() {
+    mTargetArmor.resetType();
 }

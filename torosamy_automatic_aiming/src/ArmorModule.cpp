@@ -14,25 +14,54 @@ std::vector<int> ArmorModule::mIds;
 void ArmorModule::run() {
     using namespace Torosamy;
     const std::string id = std::to_string(mId);
-    const int timeOff = mCamera->getTimeOff();
+
+    const int maxTryTimes = 5;
+    for(int i = 0;i < maxTryTimes;i++) {
+        if(mCamera->opened()) break;
+
+        if(i == maxTryTimes - 1) {
+            std::cerr<<"the module: "<<mId<<" can not get opened camera, now break thread :("<<std::endl;
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
     while (mRunning) {
         try{
             const TIME startTime = MessageUtils::getTimePoint();
 
-            doOnce();
-            if(mSrc.empty()) continue;
+            if (!mCamera->updateSrc()) {
+                mSendDataPacket->initData();
 
-    		if(mShowSrc) {
-                drawParams(startTime);
-                imshow(id, mSrc);
+                for(int i = 0;i < maxTryTimes;i++) {
+                    if(mCamera->releaseCamera()) break;
+                    if(i == maxTryTimes - 1) {
+                        std::cerr<<"fail to release the module: "<<mId<<" camera, now break thread :("<<std::endl;
+                        return;
+                    }
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+
+                if (!mCamera->openCamera()) {
+                    if(!mSrc.empty()) cv::destroyWindow(id);
+                    std::cerr<<"fail to restart camera and has been try to 5 times, now break thread :("<<std::endl;
+                    break;
+                }
+            }
+
+            const bool doSuccessful = doOnce();
+
+
+            if(mShowSrc) {
+                if(!mSrc.empty()) drawParams(startTime);
+                if(!mSrc.empty()) imshow(id, mSrc);
             }else {
                 cv::Mat img(cv::Size(50, 20), CV_8UC3, cv::Scalar(0, 0, 0));
                 Torosamy::MessageUtils::putText(img, std::to_string(Torosamy::MessageUtils::getFpsByTimePoint(startTime)), cv::Point2f(0, 20));
-                imshow(id, img);
+                if(!mSrc.empty()) imshow(id, img);
             }
-
             
-    		cv::waitKey(timeOff);
+    		cv::waitKey(mCamera->getTimeOff());
 
         }catch(const std::runtime_error& e) {
             std::cerr<<e.what()<<std::endl;
@@ -40,22 +69,18 @@ void ArmorModule::run() {
     }
 }
 
-void ArmorModule::doOnce() {
-    if(!mCamera->updateSrc()) {
+bool ArmorModule::doOnce() {
+    if (!mCamera->cloneSrc(mSrc)) {
         handlerLostTrack();
-    	return;
-    }
-    if(!mCamera->cloneSrc(mSrc)) {
+        return false;
+    }    
+    if(!findArmor())  {
         handlerLostTrack();
-    	return;
+        return false;
     }
-
-    
-
-    if(!findArmor()) return;
     if(!mArmorManager.selectTarget()) {
     	handlerLostTrack();
-    	return;
+    	return false;
 	}
 
     const ArmorPnpResult& targetArmorPnpResult = getPnpResult();
@@ -66,26 +91,31 @@ void ArmorModule::doOnce() {
 
     mSendDataPacket->yaw.f = mFireControlHandler.getYaw(targetArmorPnpResult);
     mSendDataPacket->pitch.f = mFireControlHandler.getPitch(targetArmorPnpResult);
-    mSendDataPacket->isFindTarget.b = true;
+    mSendDataPacket->is_find_target.b = true;
     mSendDataPacket->distance.f = targetArmorPnpResult.getDistance();
-    mSendDataPacket->startFire.b = shouldFire();
+    mSendDataPacket->start_fire.b = shouldFire();
+
+    return true;
 }
 
 
 bool ArmorModule::findArmor() {
+
 	if(!mLightManager.findLights(mSrc, Torosamy::targetColor)) {
     	handlerLostTrack();
     	return false;
 	}
-    
-    //mLightManager.drawLights(mSrc);
+    mLightManager.drawLights(mSrc);
     
     if(!mArmorManager.findArmors(mLightManager.getLights())) {
+        mArmorManager.resetTargetArmorType();
         handlerLostTrack();
     	return false;
     }
+    mArmorManager.drawArmors(mSrc);
     
     if (!mArmorManager.findArmors(mSrc)) {
+        mArmorManager.resetTargetArmorType();
         handlerLostTrack();
         return false;
     }
@@ -98,6 +128,12 @@ bool ArmorModule::findArmor() {
 
 ArmorPnpResult ArmorModule::getPnpResult() {
     const Armor& targetArmor = mArmorManager.getTargetArmor();
+
+    // if (targetArmor.getArmorType() != ArmorType::OUTPOST) {
+    //     // std::cout << static_cast<int>(targetArmor.getArmorType()) <<std::endl;
+    // }
+
+    
     const ArmorPnpResult& armor_pnp_result = ArmorPnpResult(
         mCamera->getCameraMatrix(),
         mCamera->getDistCoeffs(),
@@ -107,17 +143,16 @@ ArmorPnpResult ArmorModule::getPnpResult() {
     );
 
     if (!mPredictHandler.enabled()) return armor_pnp_result;
-    const PredictMode mode = mReceiveDataPacket->motionEnable.b ? PredictMode::MOTION : PredictMode::POINT;
 
-    if (mode == PredictMode::POINT) {
+    if (mPredictHandler.getMode() == PredictMode::POINT) {
         const ArmorType& armorType = targetArmor.getArmorType();
 
         const cv::Point2f predictPoint = armorType == ArmorType::OUTPOST ?
         mPredictHandler.mPointPredicter.getPredictPoint(mFireControlHandler.getFilghtTime(), targetArmor,mReceiveDataPacket->yaw.f,mReceiveDataPacket->pitch.f) :
         mPredictHandler.mPointPredicter.getPredictPoint(mFireControlHandler.getFilghtTime(), targetArmor);
 
-        // TODO
-        // mSendDataPacket->is_turn_right = predictPoint.x > targetArmor.getCenter().x;
+        //TODO
+        mSendDataPacket->is_turn_right.b = predictPoint.x > targetArmor.getCenter().x;
 
         if (mPredictHandler.isUpdateResult()) {
             return ArmorPnpResult(
@@ -134,7 +169,7 @@ ArmorPnpResult ArmorModule::getPnpResult() {
 
 
 
-    if (mode == PredictMode::MOTION) {
+    if (mPredictHandler.getMode() == PredictMode::MOTION) {
         if (mLostFrameHandler.isLostFrame()) {
             mPredictHandler.mMotionPredicter.init(armor_pnp_result);
         }
@@ -154,10 +189,9 @@ ArmorPnpResult ArmorModule::getPnpResult() {
         if (mPredictHandler.mMotionPredicter.update(armorPnpResults)) {
             
             //TODO
-            // mSendDataPacket->is_turn_right = mPredictHandler.mMotionPredicter.isTurnRight();
+            mSendDataPacket->is_turn_right.b = mPredictHandler.mMotionPredicter.isTurnRight();
 
             if (mPredictHandler.isUpdateResult()) return armor_pnp_result;
-
 
 
             const Eigen::Vector3d& tvec = mPredictHandler.mMotionPredicter.generatePredictTvec(
@@ -169,7 +203,7 @@ ArmorPnpResult ArmorModule::getPnpResult() {
             return ArmorPnpResult(tvec, targetArmor);
         }
 
-        // mSendDataPacket->is_turn_right = false;
+        mSendDataPacket->is_turn_right.b = false;
 
     }
 
@@ -180,12 +214,7 @@ ArmorPnpResult ArmorModule::getPnpResult() {
 bool ArmorModule::handlerLostTrack() {
   	mLostFrameHandler.lostTrack();
     if (mLostFrameHandler.isLostFrame()) {
-        mSendDataPacket->yaw.f = 0.0f;
-        mSendDataPacket->pitch.f = 0.0f;
-        mSendDataPacket->distance.f = 0.0f;
-        mSendDataPacket->isFindTarget.b = false;
-        mSendDataPacket->startFire.b = false;
-        // mSendDataPacket->is_turn_right = false;
+        mSendDataPacket->initData();
         return true;
     }
     return false;
@@ -193,11 +222,11 @@ bool ArmorModule::handlerLostTrack() {
 
 
 
-
 std::vector<std::shared_ptr<Torosamy::TorosamyModule>> ArmorModule::makeModules() {
     std::vector<std::shared_ptr<Torosamy::TorosamyModule>> result;
-
-    const YAML::Node fileReader = YAML::LoadFile(Torosamy::TorosamyModule::getConfigLocation("armor")+"config.yml");
+    const std::string configName = Torosamy::targetColor == Torosamy::ColorType::RED ? "target_red_config.yml" : "target_blue_config.yml";
+    
+    const YAML::Node fileReader = YAML::LoadFile(Torosamy::TorosamyModule::getConfigLocation("armor")+configName);
 
     std::vector<int> ids;
     for(const auto& idNode : fileReader["LoadIds"]) {
@@ -221,15 +250,16 @@ std::vector<std::shared_ptr<Torosamy::TorosamyModule>> ArmorModule::makeModules(
 
 ArmorModule::ArmorModule(const int& id) : 
     TorosamyModule(id),
-    // mLastWorldCenterX(0),
-    // mShootPublisher(std::make_shared<ShootPublisher>(id)),
-    // mShootSubscriber(std::make_shared<ShootSubscriber>(id)), 
     mLightManager(getConfigNode(id)["Light"]),
     mArmorManager(getConfigNode(id)["Armor"]),
     mFireControlHandler(getConfigNode(id)["FireControl"]),
     mPredictHandler(getConfigNode(id)["Predict"]){
 	std::string stringId = std::to_string(id);
     const YAML::Node fileReader = getConfigNode(id);
+
+    const std::string configName = Torosamy::targetColor == Torosamy::ColorType::RED ? "target_red_config.yml" : "target_blue_config.yml";
+
+    std::cout <<"module id: "<<id<< ", read config: "<<configName <<std::endl;
 
     mShowSrc = fileReader["ShowSrc"].as<bool>();
     mCamera = Torosamy::CameraManager::getInstance()->getCameraById<Torosamy::MindCamera>(fileReader["CameraID"].as<int>());
@@ -239,37 +269,34 @@ ArmorModule::ArmorModule(const int& id) :
 
 
 bool ArmorModule::shouldFire() const{
-    if (!mSendDataPacket->isFindTarget.b) return false;
+    if (!mSendDataPacket->is_find_target.b) return false;
 
 	const float yaw = fabs(mSendDataPacket->yaw.f);
     const float pitch = fabs(mSendDataPacket->pitch.f);
     const float distance = mSendDataPacket->distance.f;
 
-
-    if (pitch >= 2.1) return false;
-    if (yaw < 1.0 && pitch < 1.0) return true;
-    return false;
+    return mFireControlHandler.shouldFire(distance, yaw, pitch);
 }
 
 
 void ArmorModule::drawParams(const Torosamy::TIME& startTime) {
     using namespace Torosamy;
 
-    std::string params[9] = {
+    std::string params[10] = {
         "pitch:" + std::to_string(mSendDataPacket->pitch.f),
         "yaw:" + std::to_string(mSendDataPacket->yaw.f),
         "distance:" + std::to_string(mSendDataPacket->distance.f),
-        "find_target:" + std::to_string(mSendDataPacket->isFindTarget.b),
-        "start_fire:" + std::to_string(mSendDataPacket->startFire.b),
+        "find_target:" + std::to_string(mSendDataPacket->is_find_target.b),
+        "start_fire:" + std::to_string(mSendDataPacket->start_fire.b),
         "gain_yaw:" + std::to_string(mReceiveDataPacket->yaw.f),
         "gain_pitch:" + std::to_string(mReceiveDataPacket->pitch.f),
-        // "turn_right:" + std::to_string(mSendDataPacket->is_turn_right),
-        "type:" + std::to_string(static_cast<int>(mArmorManager.getTargetArmor().getArmorType()) + 1),
+        "turn_right:" + std::to_string(mSendDataPacket->is_turn_right.b),
+        "target_type:" + std::to_string(static_cast<int>(mArmorManager.getTargetArmor().getArmorType())),
         "fps:" + std::to_string(MessageUtils::getFpsByTimePoint(startTime))
     };
 
 
-    for(int i = 0;i<9;i++) {
+    for(int i = 0;i<10;i++) {
         MessageUtils::putText(mSrc, params[i], cv::Point(0, (i + 1) * 20));
     }
 
@@ -291,7 +318,11 @@ std::vector<int> ArmorModule::getIds() {
 }
 
 YAML::Node ArmorModule::getConfigNode(const int& id) {
-    return YAML::LoadFile(getConfigLocation("armor")+ "config.yml")[std::to_string(id)];
+    const std::string configName = Torosamy::targetColor == Torosamy::ColorType::RED ? "target_red_config.yml" : "target_blue_config.yml";
+
+    // std::cout <<"module id: "<<id<< ", read config: target_red_config.yml"<<std::endl;
+
+    return YAML::LoadFile(getConfigLocation("armor")+ configName)[std::to_string(id)];
 }
 
 void ArmorModule::enableShow() {
@@ -301,6 +332,3 @@ void ArmorModule::disableShow() {
     mShowSrc = false;
 }
 
-// const std::shared_ptr<ShootSubscriber>& ArmorModule::getSubscriber() const{
-//     return this->mShootSubscriber;
-// }

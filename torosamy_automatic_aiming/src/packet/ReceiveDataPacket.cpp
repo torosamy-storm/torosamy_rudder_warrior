@@ -10,8 +10,8 @@ ReceiveDataPacket::ReceiveDataPacket(const int& id):
 void ReceiveDataPacket::initData() {
     this->pitch.f = 0;
     this->yaw.f = 0;
-    this->heartJumpNum.s = 0;
-    this->motionEnable.b = false;
+    this->heart_jump_num.s = 0;
+    this->motion_enable.b = false;
 }
 
 int ReceiveDataPacket::readData(const unsigned char* const dataArr,const int& startIndex) {
@@ -27,9 +27,9 @@ int ReceiveDataPacket::readData(const unsigned char* const dataArr,const int& st
     this->yaw.c[3] = dataArr[startIndex + index++];
 
 
-    this->heartJumpNum.c[0] = dataArr[startIndex + index++];
-    this->heartJumpNum.c[1] = dataArr[startIndex + index++];
+    this->heart_jump_num.c[0] = dataArr[startIndex + index++];
+    this->heart_jump_num.c[1] = dataArr[startIndex + index++];
 
-    this->motionEnable.c[0] = dataArr[startIndex + index++];
+    this->motion_enable.c[0] = dataArr[startIndex + index++];
     return mSize;
 }

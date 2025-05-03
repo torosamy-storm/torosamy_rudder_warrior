@@ -19,7 +19,7 @@ HeartJumpModule::HeartJumpModule(const int& id) :
 void HeartJumpModule::run() {
     const std::shared_ptr<ReceiveDataPacket>& packet = Torosamy::PacketManager::getInstance()->getReceivePacketById<ReceiveDataPacket>(0);
     while (true) {
-        const short newNumber = packet->heartJumpNum.s;
+        const short newNumber = packet->heart_jump_num.s;
         // std::cout << "last: "<<mLastHeartJumpNum<<", this: "<<newNumber<<std::endl;
 
 

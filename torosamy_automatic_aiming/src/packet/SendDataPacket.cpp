@@ -12,9 +12,9 @@ SendDataPacket::SendDataPacket(const int& id):
 void SendDataPacket::initData() {
     this->pitch.f = 0;
     this->yaw.f = 0;
-    this->heartJumpNum.s = 0;
-    this->isFindTarget.b = false;
-    this->startFire.b = false;
+    this->heart_jump_num.s = 0;
+    this->is_find_target.b = false;
+    this->start_fire.b = false;
     this->distance.f = 0;
 }
 
@@ -34,13 +34,13 @@ int SendDataPacket::writeData(unsigned char* dataArr,const int& startIndex) {
     dataArr[startIndex + index++] = this->yaw.c[3];
 
 
-    this->heartJumpNum.s = (this->heartJumpNum.s + 1) % 10;
-    dataArr[startIndex + index++] = this->heartJumpNum.c[0];
-    dataArr[startIndex + index++] = this->heartJumpNum.c[1];
+    this->heart_jump_num.s = (this->heart_jump_num.s + 1) % 10;
+    dataArr[startIndex + index++] = this->heart_jump_num.c[0];
+    dataArr[startIndex + index++] = this->heart_jump_num.c[1];
 
 
-    dataArr[startIndex + index++] = this->isFindTarget.c[0];
-    dataArr[startIndex + index++] = this->startFire.c[0];
+    dataArr[startIndex + index++] = this->is_find_target.c[0];
+    dataArr[startIndex + index++] = this->start_fire.c[0];
 
     return mSize;
 }

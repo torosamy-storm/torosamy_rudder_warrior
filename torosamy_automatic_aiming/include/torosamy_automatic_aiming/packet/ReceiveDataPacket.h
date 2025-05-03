@@ -14,8 +14,8 @@ public:
     int readData(const unsigned char* dataArr,const int& startIndex) override;
     void initData() override;
 
-    bool2uchar motionEnable;
-    short2uchar heartJumpNum;
+    bool2uchar motion_enable;
+    short2uchar heart_jump_num;
     float2uchar pitch;
     float2uchar yaw;
 };

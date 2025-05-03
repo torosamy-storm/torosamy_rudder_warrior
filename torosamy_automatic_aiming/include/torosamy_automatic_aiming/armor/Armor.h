@@ -5,27 +5,27 @@
 #include "Eigen/Dense"
 
 enum class ArmorType {
-    ONE,
-    TWO,
-    THREE,
-    FOUR,
-    FIVE,
-    OUTPOST,
-    GUARD,
-    BASE,
-    NEGATIVE
+    ONE = 0,
+    TWO = 1,
+    THREE = 2,
+    FOUR = 3,
+    FIVE = 4,
+    OUTPOST = 5,
+    GUARD = 6,
+    BASE = 7,
+    NEGATIVE = 8
 };
 
 class Armor {
 public:
-    Armor() = default;
+    Armor();
     Armor(const Light& light1, const Light& light2);
     void drawArmor(cv::Mat& outSrc) const;
     void drawArmor(cv::Mat& outSrc, const std::vector<bool>& debugOptions) const;
 
     Armor generatePredictArmor(const cv::Point2f& center) const;
     void setArmorType(const ArmorType& armorType);
-
+    void resetType();
     bool isBigArmor() const;
     float getArea() const;
     float getLightLengthRate() const;
